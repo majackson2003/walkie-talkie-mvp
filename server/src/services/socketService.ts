@@ -1,7 +1,7 @@
 import { randomInt, randomUUID } from 'crypto';
 import path from 'path';
 import type { Server, Socket } from 'socket.io';
-import type { Channel, EmergencyBroadcast, MessagePriority, User } from '@walkie/shared/types';
+import type { AudioMessage, Channel, EmergencyBroadcast, MessagePriority, User } from '@walkie/shared/types';
 import { DatabaseService } from './databaseService';
 import { createEmergencyService } from './emergencyService';
 
@@ -74,6 +74,22 @@ type AudioLocation = {
   accuracy?: number;
 };
 
+type AudioMimeType = AudioMessage['mimeType'];
+
+type LegacyAudioMessage = {
+  channelCode?: string;
+  fromUserId?: string;
+  senderId?: string;
+  fromNickname?: string;
+  senderNickname?: string;
+  payloadBase64?: string;
+  audioBase64?: string;
+  mimeType?: string;
+  durationMs?: number;
+  priority?: MessagePriority;
+  location?: AudioLocation;
+};
+
 type SendAudioMessagePayload = {
   channelCode: string;
   senderId: string;
@@ -129,7 +145,7 @@ export const createSocketService = (io: Server) => {
     }
   })();
   const emergencyService = createEmergencyService(io, {
-    getUserContext: (socketId) => {
+    getUserContext: (socketId: string) => {
       const indexed = socketIndex.get(socketId);
       if (!indexed) {
         return null;
@@ -144,7 +160,7 @@ export const createSocketService = (io: Server) => {
       }
       return { user: userState.user, channelCode: indexed.channelCode };
     },
-    touchActivity: (socketId) => {
+    touchActivity: (socketId: string) => {
       const indexed = socketIndex.get(socketId);
       if (!indexed) {
         return;
@@ -225,15 +241,12 @@ export const createSocketService = (io: Server) => {
     };
   };
 
-  const normalizeMimeType = (value: string) => {
-    const trimmed = value.trim().toLowerCase();
-    if (trimmed.startsWith('audio/webm')) {
-      return 'audio/webm';
+  const normalizeMimeType = (value: string): AudioMimeType | null => {
+    const base = value.split(';')[0]?.trim().toLowerCase();
+    if (base === 'audio/webm' || base === 'audio/mp4') {
+      return base;
     }
-    if (trimmed.startsWith('audio/mp4')) {
-      return 'audio/mp4';
-    }
-    return trimmed;
+    return null;
   };
 
   const logAudioViolation = (socket: Socket, reason: string, details?: Record<string, unknown>) => {
@@ -433,7 +446,7 @@ export const createSocketService = (io: Server) => {
             channelCode: message.channelCode,
             senderNickname: message.fromNickname,
             audioBase64: message.payload.toString('base64'),
-            mimeType: normalizeMimeType(message.mimeType),
+            mimeType: message.mimeType,
             priority: message.priority,
             timestamp: message.createdAt.toISOString(),
           }));
@@ -582,11 +595,14 @@ export const createSocketService = (io: Server) => {
       return;
     }
 
-    const normalizedMimeType = normalizeMimeType(data.mimeType);
-    if (
-      !normalizedMimeType.startsWith('audio/') ||
-      !ALLOWED_MIME_TYPES.has(normalizedMimeType)
-    ) {
+    const rawMimeType = data.mimeType.trim().toLowerCase();
+    const normalizedMimeType = normalizeMimeType(rawMimeType);
+    if (!rawMimeType.startsWith('audio/') || !ALLOWED_MIME_TYPES.has(rawMimeType)) {
+      logAudioViolation(socket, 'invalid_payload', { stage: 'mime', mimeType: data.mimeType });
+      ack?.({ ok: false, error: 'Unsupported mime type.', code: 'invalid_payload' });
+      return;
+    }
+    if (!normalizedMimeType) {
       logAudioViolation(socket, 'invalid_payload', { stage: 'mime', mimeType: data.mimeType });
       ack?.({ ok: false, error: 'Unsupported mime type.', code: 'invalid_payload' });
       return;
@@ -763,8 +779,23 @@ export const createSocketService = (io: Server) => {
 
     socket.on('audio:send', (payload, ack) => {
       const legacy = payload as { message?: unknown };
-      const message = legacy?.message as Partial<SendAudioMessagePayload> | undefined;
+      const message = legacy?.message as LegacyAudioMessage | undefined;
       if (!message) {
+        handleSendAudioMessage(socket, payload, ack);
+        return;
+      }
+      const senderId = message.fromUserId ?? message.senderId;
+      const senderNickname = message.fromNickname ?? message.senderNickname;
+      const audioBase64 = message.payloadBase64 ?? message.audioBase64;
+      if (
+        !message.channelCode ||
+        !senderId ||
+        !senderNickname ||
+        !audioBase64 ||
+        !message.mimeType ||
+        message.durationMs === undefined ||
+        !message.priority
+      ) {
         handleSendAudioMessage(socket, payload, ack);
         return;
       }
@@ -772,13 +803,13 @@ export const createSocketService = (io: Server) => {
         socket,
         {
           channelCode: message.channelCode,
-          senderId: message.fromUserId ?? message.senderId,
-          senderNickname: message.fromNickname ?? message.senderNickname,
-          audioBase64: message.payloadBase64 ?? message.audioBase64,
+          senderId,
+          senderNickname,
+          audioBase64,
           mimeType: message.mimeType,
           durationMs: message.durationMs,
           priority: message.priority,
-          location: (message as SendAudioMessagePayload).location,
+          location: message.location,
         } satisfies SendAudioMessagePayload,
         ack,
       );

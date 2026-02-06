@@ -22,6 +22,27 @@ type ChannelLeavePayload = {
   channelCode: string;
 };
 
+type ChannelResponse = {
+  channel: {
+    code: string;
+    displayName: string;
+    createdAt: string | Date;
+  };
+  user: {
+    id: string;
+    nickname: string;
+    channelCode: string;
+    joinedAt: string | Date;
+    connectionStatus: ConnectionStatus;
+  };
+};
+
+type ChannelLeaveResponse = {
+  channelCode: string;
+  userId: string;
+  leftAt: string | Date;
+};
+
 export type AudioLocation = {
   lat: number;
   lng: number;
@@ -167,7 +188,7 @@ export class SocketService {
     if (!nickname) {
       throw new Error('Invalid nickname.');
     }
-    return this.emitWithAck('channel:create', { nickname });
+    return this.emitWithAck<ChannelResponse>('channel:create', { nickname });
   }
 
   async joinChannel(payload: ChannelJoinPayload) {
@@ -175,14 +196,19 @@ export class SocketService {
     if (!nickname || !this.isValidChannelCode(payload.channelCode)) {
       throw new Error('Invalid channel code or nickname.');
     }
-    return this.emitWithAck('channel:join', { channelCode: payload.channelCode, nickname });
+    return this.emitWithAck<ChannelResponse>('channel:join', {
+      channelCode: payload.channelCode,
+      nickname,
+    });
   }
 
   async leaveChannel(payload: ChannelLeavePayload) {
     if (!this.isValidChannelCode(payload.channelCode)) {
       throw new Error('Invalid channel code.');
     }
-    return this.emitWithAck('channel:leave', { channelCode: payload.channelCode });
+    return this.emitWithAck<ChannelLeaveResponse>('channel:leave', {
+      channelCode: payload.channelCode,
+    });
   }
 
   async sendAudioMessage(payload: SendAudioMessagePayload): Promise<SendAudioResult> {

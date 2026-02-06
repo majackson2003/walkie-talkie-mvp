@@ -315,7 +315,7 @@ export const useAudioPlayer = (): UseAudioPlayer => {
     (
       blob: Blob,
       priority: AudioPriority = 'routine',
-      id = crypto.randomUUID(),
+      id: string = crypto.randomUUID(),
       options?: EnqueueOptions,
     ) => {
       enqueueItem({ id, priority, kind: 'blob', blob }, options);

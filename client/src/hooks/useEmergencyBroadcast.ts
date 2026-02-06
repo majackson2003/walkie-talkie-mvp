@@ -106,7 +106,7 @@ export const useEmergencyBroadcast = ({
 
         if (!response.ok) {
           if (response.code === 'rate_limited') {
-            const retryAfterMs = response.retryAfterMs;
+            const retryAfterMs = response.retryAfterMs ?? 0;
             if (retryAfterMs > 0) {
               lastBroadcastRef.current = Date.now() - (RATE_LIMIT_WINDOW_MS - retryAfterMs);
               updateCooldown();

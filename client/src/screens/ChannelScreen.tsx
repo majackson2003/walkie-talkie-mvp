@@ -410,23 +410,25 @@ export const ChannelScreen = ({ socketService, channelCode, nickname }: ChannelS
 
   useEffect(() => {
     const unsubscribeJoined = socketService.on('user:joined', (payload: { user?: UserSummary }) => {
-      if (!payload?.user) {
+      const user = payload?.user;
+      if (!user) {
         return;
       }
       setUsers((prev) => {
-        const exists = prev.some((user) => user.id === payload.user!.id);
+        const exists = prev.some((prevUser) => prevUser.id === user.id);
         if (exists) {
           return prev;
         }
-        return [...prev, { id: payload.user.id, nickname: payload.user.nickname }];
+        return [...prev, { id: user.id, nickname: user.nickname }];
       });
     });
 
     const unsubscribeLeft = socketService.on('user:left', (payload: { user?: UserSummary }) => {
-      if (!payload?.user) {
+      const user = payload?.user;
+      if (!user) {
         return;
       }
-      setUsers((prev) => prev.filter((user) => user.id !== payload.user!.id));
+      setUsers((prev) => prev.filter((prevUser) => prevUser.id !== user.id));
     });
 
     return () => {

@@ -1,7 +1,11 @@
 import fs from 'fs';
 import path from 'path';
-import Database, { type Statement } from 'better-sqlite3';
+import Database from 'better-sqlite3';
 import type { AudioMessage, Channel, EmergencyBroadcast, MessagePriority } from '@walkie/shared/types';
+
+type AudioMimeType = AudioMessage['mimeType'];
+type Statement<T extends Record<string, unknown> = Record<string, unknown>, R = unknown> =
+  Database.Statement<[T], R>;
 
 type DatabaseServiceOptions = {
   filename: string;
@@ -23,7 +27,7 @@ type MessageRow = {
   from_nickname: string;
   created_at: number;
   priority: MessagePriority;
-  mime_type: string;
+  mime_type: AudioMimeType;
   duration_ms: number;
   size_bytes: number;
   payload: Buffer;
@@ -44,7 +48,7 @@ type AudioMessageRecord = Omit<AudioMessage, 'payloadBase64'> & { payload: Buffe
 const DEFAULT_MAX_AUDIO_BYTES = 1_000_000;
 
 export class DatabaseService {
-  private readonly db: Database;
+  private readonly db: Database.Database;
   private readonly maxAudioBytes: number;
 
   private readonly insertChannelStmt: Statement<ChannelRow>;
@@ -53,7 +57,7 @@ export class DatabaseService {
   private readonly insertMessageStmt: Statement<MessageRow>;
   private readonly pruneMessagesStmt: Statement<{ channel_code: string }>;
   private readonly listRecentMessagesStmt: Statement<{ channel_code: string; limit: number }>;
-  private readonly listChannelCodesStmt: Statement;
+  private readonly listChannelCodesStmt: Database.Statement<[]>;
   private readonly deleteOldMessagesStmt: Statement<{ cutoff: number }>;
   private readonly deleteOldEmergencyStmt: Statement<{ cutoff: number }>;
   private readonly deleteIdleChannelsStmt: Statement<{ cutoff: number }>;
