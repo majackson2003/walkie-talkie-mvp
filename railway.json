@@ -1,0 +1,11 @@
+{
+  "build": {
+    "builder": "NIXPACKS",
+    "buildCommand": "npm install && npm run build -w shared && npm run build -w server"
+  },
+  "deploy": {
+    "startCommand": "npm run start -w server",
+    "healthcheckPath": "/health",
+    "healthcheckTimeout": 100
+  }
+}
