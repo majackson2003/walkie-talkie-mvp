@@ -4,7 +4,7 @@
     "buildCommand": "npm install && npm run build -w shared && npm run build -w server"
   },
   "deploy": {
-    "startCommand": "npm run start -w server",
+    "startCommand": "node server/dist/index.js",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 100
   }
