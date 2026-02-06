@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import http from 'http';
+import path from 'path';
 import express from 'express';
 import cors from 'cors';
 import { Server as SocketIOServer } from 'socket.io';
@@ -76,6 +77,14 @@ app.use((req, res, next) => {
 app.get('/health', (_req, res) => {
   res.json({ ok: true, uptime: process.uptime() });
 });
+
+if (process.env.NODE_ENV === 'production') {
+  const staticDir = path.resolve(__dirname, '../public');
+  app.use(express.static(staticDir));
+  app.get('*', (_req, res) => {
+    res.sendFile(path.join(staticDir, 'index.html'));
+  });
+}
 
 const httpServer = http.createServer(app);
 const io = new SocketIOServer(httpServer, {
